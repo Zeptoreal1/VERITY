@@ -1,0 +1,228 @@
+{
+  "geode": "4.0.0",
+  "gd": {
+    "win": "*",
+    "android": "*",
+    "mac": "*",
+    "ios": "*"
+  },
+  "id": "yourname.alt-spam",
+  "name": "Alt Spam",
+  "version": "v1.0.0",
+  "developer": "yourname",
+  "description": "Automatic alternating-input (alt spam) trainer with 5/7 bursts, CPS, delay, buffer and presets.",
+  "tags": [
+    "gameplay",
+    "utility",
+    "universal"
+  ],
+  "settings": {
+    "t1": {
+      "type": "title",
+      "name": "Spam"
+    },
+    "cps": {
+      "type": "float",
+      "name": "CPS",
+      "description": "Base clicks per second.",
+      "default": 20,
+      "min": 1,
+      "max": 60
+    },
+    "intensity": {
+      "type": "float",
+      "name": "Spam intensity (%)",
+      "description": "Scales CPS. 100 = full rate.",
+      "default": 100,
+      "min": 5,
+      "max": 100
+    },
+    "speed": {
+      "type": "float",
+      "name": "Speed multiplier",
+      "description": "Multiplies the click rate.",
+      "default": 1,
+      "min": 0.25,
+      "max": 2
+    },
+    "continuous": {
+      "type": "bool",
+      "name": "Continuous (no bursts)",
+      "description": "Off = repeat bursts of 5/7 clicks.",
+      "default": false
+    },
+    "burst-size": {
+      "type": "int",
+      "name": "Clicks per burst",
+      "description": "Set quickly with the 5/7 arrows in the HUD.",
+      "default": 5,
+      "min": 2,
+      "max": 15
+    },
+    "frequency": {
+      "type": "float",
+      "name": "Burst frequency (Hz)",
+      "description": "Bursts per second.",
+      "default": 2,
+      "min": 0.2,
+      "max": 10
+    },
+    "continue-alt": {
+      "type": "bool",
+      "name": "Keep alternating across bursts",
+      "description": "Off = every burst starts on the start side.",
+      "default": true
+    },
+    "start-lane": {
+      "type": "string",
+      "name": "Start side",
+      "description": "Which input fires first.",
+      "default": "Left",
+      "one-of": [
+        "Left",
+        "Right"
+      ]
+    },
+    "ramp-ms": {
+      "type": "float",
+      "name": "Ramp-up (ms)",
+      "description": "Ease from 25% to full CPS after start.",
+      "default": 0,
+      "min": 0,
+      "max": 2000
+    },
+    "hold-ratio": {
+      "type": "float",
+      "name": "Hold length (%)",
+      "description": "How long each click is held vs. the interval.",
+      "default": 40,
+      "min": 10,
+      "max": 90
+    },
+    "split-dual": {
+      "type": "bool",
+      "name": "Split inputs across players",
+      "description": "Left input -> Player 1, right input -> Player 2 in dual mode.",
+      "default": false
+    },
+    "t2": {
+      "type": "title",
+      "name": "Timing"
+    },
+    "input-delay": {
+      "type": "float",
+      "name": "Input delay (ms)",
+      "description": "Delays every click.",
+      "default": 0,
+      "min": 0,
+      "max": 500
+    },
+    "lane-offset": {
+      "type": "float",
+      "name": "Right-input offset (ms)",
+      "description": "Extra delay on the right input only.",
+      "default": 0,
+      "min": 0,
+      "max": 50
+    },
+    "buffer-ms": {
+      "type": "float",
+      "name": "Buffer (ms)",
+      "description": "Early-fire tolerance. A click due within this window of the current physics step fires now.",
+      "default": 0,
+      "min": 0,
+      "max": 50
+    },
+    "jitter": {
+      "type": "float",
+      "name": "Humanize jitter (ms)",
+      "description": "Random +/- variation on click times.",
+      "default": 0,
+      "min": 0,
+      "max": 15
+    },
+    "countdown-ms": {
+      "type": "int",
+      "name": "Start countdown (ms)",
+      "description": "Wait after each attempt starts.",
+      "default": 0,
+      "min": 0,
+      "max": 5000
+    },
+    "auto-stop-sec": {
+      "type": "int",
+      "name": "Auto-stop (s)",
+      "description": "Stop each attempt after this long. 0 = never.",
+      "default": 0,
+      "min": 0,
+      "max": 120
+    },
+    "t3": {
+      "type": "title",
+      "name": "Interface"
+    },
+    "hud": {
+      "type": "bool",
+      "name": "Show in-game HUD",
+      "description": "Toggle button, 5/7 arrows, stats and presets.",
+      "default": true
+    },
+    "auto-arm": {
+      "type": "bool",
+      "name": "Arm automatically each attempt",
+      "description": "Start spamming as soon as an attempt begins.",
+      "default": false
+    },
+    "t4": {
+      "type": "title",
+      "name": "Keybinds (desktop only)"
+    },
+    "key-toggle": {
+      "type": "string",
+      "name": "Toggle key",
+      "description": "",
+      "default": "F6",
+      "one-of": [
+        "None",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "Q",
+        "E",
+        "R",
+        "Z",
+        "X",
+        "C",
+        "V",
+        "Space"
+      ]
+    },
+    "key-prev": {
+      "type": "string",
+      "name": "Pattern previous",
+      "description": "",
+      "default": "Left",
+      "one-of": [
+        "None",
+        "Left",
+        "Q",
+        "Z",
+        "F7"
+      ]
+    },
+    "key-next": {
+      "type": "string",
+      "name": "Pattern next",
+      "description": "",
+      "default": "Right",
+      "one-of": [
+        "None",
+        "Right",
+        "E",
+        "X",
+        "F8"
+      ]
+    }
+  }
+}
