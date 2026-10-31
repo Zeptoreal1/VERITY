@@ -99,7 +99,7 @@ static void presetClear(int slot) { Mod::get()->setSavedValue<bool>(pkey(slot, "
 
 // ------------------------------------------------------------------ the actual input injection
 class $modify(AltGameLayer, GJBaseGameLayer) {
-    void processCommands(float dt) {
+        void processCommands(float dt, bool isHalfTick, bool isLastTick) {
         auto pl = PlayLayer::get();
         if (pl && static_cast<GJBaseGameLayer*>(pl) == this) {
             auto send = [this](bool down, int lane) {
@@ -115,7 +115,7 @@ class $modify(AltGameLayer, GJBaseGameLayer) {
                 g_wasActive = false;
             }
         }
-        GJBaseGameLayer::processCommands(dt);
+                GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
     }
 };
 
