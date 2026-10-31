@@ -1,0 +1,65 @@
+name: Build Geode Mod
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Fast check of the click-timing logic (plain C++, no game needed).
+  logic-test:
+    name: Timing engine tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run engine tests
+        run: |
+          g++ -std=c++20 -O2 -Wall -Wextra tests/engine_test.cpp -o engine_test
+          ./engine_test
+
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Android32
+            os: ubuntu-latest
+            target: Android32
+          - name: Android64
+            os: ubuntu-latest
+            target: Android64
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keeps mod.json's "geode" version in sync with the newest Geode SDK release,
+      # so the build works no matter which SDK version is current.
+      - name: Sync Geode version in mod.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/geode-sdk/geode/releases/latest | jq -r .tag_name)
+          VER="${TAG#v}"
+          echo "Using Geode $VER"
+          jq --arg v "$VER" '.geode = $v' mod.json > mod.json.tmp && mv mod.json.tmp mod.json
+
+      - name: Build the mod
+        uses: geode-sdk/build-geode-mod@main
+        with:
+          combine: true
+          target: ${{ matrix.config.target }}
+
+  package:
+    name: Package .geode
+    runs-on: ubuntu-latest
+    needs: ['build']
+    steps:
+      - uses: geode-sdk/build-geode-mod/combine@main
+        id: combined
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AltSpam-geode
+          path: ${{ steps.combined.outputs.build-output }}
