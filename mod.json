@@ -17,66 +17,70 @@
     "universal"
   ],
   "settings": {
-    "t1": {
+    "t0": {
       "type": "title",
-      "name": "Spam"
+      "name": "Main (also on the in-game panel)"
     },
     "cps": {
       "type": "float",
-      "name": "CPS",
-      "description": "Base clicks per second.",
+      "name": "Clicks per second",
+      "description": "How fast it clicks. 20 is a good start, 30+ is very fast.",
       "default": 20,
       "min": 1,
       "max": 60
     },
     "intensity": {
       "type": "float",
-      "name": "Spam intensity (%)",
-      "description": "Scales CPS. 100 = full rate.",
+      "name": "Intensity (%)",
+      "description": "Turns the click speed down or up. 100 = full speed, 50 = half.",
       "default": 100,
       "min": 5,
       "max": 100
     },
-    "speed": {
-      "type": "float",
-      "name": "Speed multiplier",
-      "description": "Multiplies the click rate.",
-      "default": 1,
-      "min": 0.25,
-      "max": 2
-    },
     "continuous": {
       "type": "bool",
-      "name": "Continuous (no bursts)",
-      "description": "Off = repeat bursts of 5/7 clicks.",
+      "name": "Nonstop mode",
+      "description": "ON = click nonstop. OFF = click in short bursts with a pause between them.",
       "default": false
     },
     "burst-size": {
       "type": "int",
       "name": "Clicks per burst",
-      "description": "Set quickly with the 5/7 arrows in the HUD.",
+      "description": "Burst mode only: how many alternating clicks (left, right, left...) before the pause. 5 and 7 are the usual ones - switch with the < > arrows on the panel.",
       "default": 5,
       "min": 2,
       "max": 15
     },
     "frequency": {
       "type": "float",
-      "name": "Burst frequency (Hz)",
-      "description": "Bursts per second.",
+      "name": "Bursts per second",
+      "description": "Burst mode only: how many bursts start each second. Lower = longer pause between bursts.",
       "default": 2,
       "min": 0.2,
       "max": 10
     },
+    "t1": {
+      "type": "title",
+      "name": "Fine tuning"
+    },
+    "speed": {
+      "type": "float",
+      "name": "Speed multiplier",
+      "description": "Multiplies the click speed (1 = normal).",
+      "default": 1,
+      "min": 0.25,
+      "max": 2
+    },
     "continue-alt": {
       "type": "bool",
-      "name": "Keep alternating across bursts",
-      "description": "Off = every burst starts on the start side.",
+      "name": "Keep alternating between bursts",
+      "description": "ON = the next burst starts on the opposite side. OFF = every burst starts on the same side.",
       "default": true
     },
     "start-lane": {
       "type": "string",
-      "name": "Start side",
-      "description": "Which input fires first.",
+      "name": "First click side",
+      "description": "Which side clicks first.",
       "default": "Left",
       "one-of": [
         "Left",
@@ -85,24 +89,24 @@
     },
     "ramp-ms": {
       "type": "float",
-      "name": "Ramp-up (ms)",
-      "description": "Ease from 25% to full CPS after start.",
+      "name": "Speed-up time (ms)",
+      "description": "Starts slow and reaches full speed over this time. 0 = instant.",
       "default": 0,
       "min": 0,
       "max": 2000
     },
     "hold-ratio": {
       "type": "float",
-      "name": "Hold length (%)",
-      "description": "How long each click is held vs. the interval.",
+      "name": "Click hold length (%)",
+      "description": "How long each click is held down. Lower = shorter taps.",
       "default": 40,
       "min": 10,
       "max": 90
     },
     "split-dual": {
       "type": "bool",
-      "name": "Split inputs across players",
-      "description": "Left input -> Player 1, right input -> Player 2 in dual mode.",
+      "name": "Right side controls Player 2",
+      "description": "In dual mode, left clicks Player 1 and right clicks Player 2.",
       "default": false
     },
     "t2": {
@@ -112,15 +116,15 @@
     "input-delay": {
       "type": "float",
       "name": "Input delay (ms)",
-      "description": "Delays every click.",
+      "description": "Waits this long before every click.",
       "default": 0,
       "min": 0,
       "max": 500
     },
     "lane-offset": {
       "type": "float",
-      "name": "Right-input offset (ms)",
-      "description": "Extra delay on the right input only.",
+      "name": "Right-side extra delay (ms)",
+      "description": "Delays only the right-side clicks by this much.",
       "default": 0,
       "min": 0,
       "max": 50
@@ -128,58 +132,90 @@
     "buffer-ms": {
       "type": "float",
       "name": "Buffer (ms)",
-      "description": "Early-fire tolerance. A click due within this window of the current physics step fires now.",
+      "description": "A click due within this window fires early instead of waiting a frame. 0 = exact.",
       "default": 0,
       "min": 0,
       "max": 50
     },
     "jitter": {
       "type": "float",
-      "name": "Humanize jitter (ms)",
-      "description": "Random +/- variation on click times.",
+      "name": "Randomness (ms)",
+      "description": "Adds a small random +/- to each click time.",
       "default": 0,
       "min": 0,
       "max": 15
     },
     "countdown-ms": {
       "type": "int",
-      "name": "Start countdown (ms)",
-      "description": "Wait after each attempt starts.",
+      "name": "Start delay (ms)",
+      "description": "Waits this long after each attempt starts before clicking.",
       "default": 0,
       "min": 0,
       "max": 5000
     },
     "auto-stop-sec": {
       "type": "int",
-      "name": "Auto-stop (s)",
-      "description": "Stop each attempt after this long. 0 = never.",
+      "name": "Auto-stop (seconds)",
+      "description": "Stops clicking after this long each attempt. 0 = never.",
       "default": 0,
       "min": 0,
       "max": 120
     },
     "t3": {
       "type": "title",
-      "name": "Interface"
+      "name": "Screen"
+    },
+    "show-taps": {
+      "type": "bool",
+      "name": "Show taps",
+      "description": "Shows a glowing circle on screen every time it clicks (left side = cyan, right side = pink).",
+      "default": true
+    },
+    "tap-size": {
+      "type": "float",
+      "name": "Tap circle size",
+      "description": "Size of the tap circles.",
+      "default": 35,
+      "min": 15,
+      "max": 90
     },
     "hud": {
       "type": "bool",
-      "name": "Show in-game HUD",
-      "description": "Toggle button, 5/7 arrows, stats and presets.",
+      "name": "Show control panel",
+      "description": "The small AS button in the level that opens the controls.",
       "default": true
+    },
+    "hud-scale": {
+      "type": "float",
+      "name": "Panel size",
+      "description": "Make the panel buttons bigger or smaller.",
+      "default": 1.0,
+      "min": 0.6,
+      "max": 1.8
+    },
+    "hud-side": {
+      "type": "string",
+      "name": "Panel side",
+      "description": "Which side of the screen the panel is on.",
+      "default": "Left",
+      "one-of": [
+        "Left",
+        "Right"
+      ]
     },
     "auto-arm": {
       "type": "bool",
-      "name": "Arm automatically each attempt",
-      "description": "Start spamming as soon as an attempt begins.",
+      "name": "Start automatically",
+      "description": "Starts clicking as soon as each attempt begins.",
       "default": false
     },
     "t4": {
       "type": "title",
-      "name": "Keybinds (desktop only)"
+      "name": "Keybinds (PC only)"
     },
     "key-toggle": {
       "type": "string",
-      "name": "Toggle key",
+      "name": "Start / stop key",
       "description": "",
       "default": "F6",
       "one-of": [
@@ -200,7 +236,7 @@
     },
     "key-prev": {
       "type": "string",
-      "name": "Pattern previous",
+      "name": "Previous mode key",
       "description": "",
       "default": "Left",
       "one-of": [
@@ -213,7 +249,7 @@
     },
     "key-next": {
       "type": "string",
-      "name": "Pattern next",
+      "name": "Next mode key",
       "description": "",
       "default": "Right",
       "one-of": [

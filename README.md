@@ -28,3 +28,8 @@ verifies this and runs in CI.
 ## Notes
 - Left/Right both drive the jump button (Player 1). Enable *Split inputs* to send Right to Player 2 in dual mode.
 - This is an input bot: practice use only; don't submit runs using it.
+
+## What "5 / 7" means
+In burst mode the mod clicks left, right, left... **5 times** (or **7 times**), pauses, then repeats.
+Use the `< >` arrows on the in-game panel to switch between **5 CLICKS**, **7 CLICKS** and **NONSTOP**.
+Tap the **AS** button in a level to open the panel (CPS +/-, power +/-, presets). The panel and tap circles hide while paused.
