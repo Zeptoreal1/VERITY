@@ -12,6 +12,9 @@ static bool g_enabled = false;
 static bool g_wasActive = false;
 static int g_slot = 1;
 static int g_sinceRefresh = 0;
+static float g_tapAge[2] = {9.f, 9.f};
+static bool g_showTaps = true;
+static float g_tapSize = 35.f;
 
 static void refreshCfg() {
     auto m = Mod::get();
@@ -33,6 +36,8 @@ static void refreshCfg() {
     c.jitter = m->getSettingValue<double>("jitter");
     c.countdownMs = static_cast<double>(m->getSettingValue<int64_t>("countdown-ms"));
     c.autoStopSec = static_cast<double>(m->getSettingValue<int64_t>("auto-stop-sec"));
+    g_showTaps = m->getSettingValue<bool>("show-taps");
+    g_tapSize = static_cast<float>(m->getSettingValue<double>("tap-size"));
 }
 
 static void setEnabled(bool on) {
@@ -40,14 +45,22 @@ static void setEnabled(bool on) {
     g_enabled = on;
 }
 
-// 5 <-> 7 selector (anything else jumps to 5)
-static void stepPattern() {
+// Mode selector: 5 clicks <-> 7 clicks <-> nonstop
+static void cycleMode(int dir) {
     auto m = Mod::get();
-    int cur = static_cast<int>(m->getSettingValue<int64_t>("burst-size"));
-    m->setSettingValue<int64_t>("burst-size", cur == 5 ? 7 : 5);
-    m->setSettingValue<bool>("continuous", false);
+    int burst = static_cast<int>(m->getSettingValue<int64_t>("burst-size"));
+    bool cont = m->getSettingValue<bool>("continuous");
+    int idx = cont ? 2 : (burst == 7 ? 1 : 0);
+    idx = (idx + dir + 3) % 3;
+    m->setSettingValue<bool>("continuous", idx == 2);
+    if (idx != 2) m->setSettingValue<int64_t>("burst-size", idx == 1 ? 7 : 5);
     refreshCfg();
     if (g_enabled) g_engine.reset();
+}
+static void adjust(char const* id, double d, double lo, double hi) {
+    auto m = Mod::get();
+    m->setSettingValue<double>(id, std::min(hi, std::max(lo, m->getSettingValue<double>(id) + d)));
+    refreshCfg();
 }
 
 // ------------------------------------------------------------------ presets (5 slots)
@@ -99,11 +112,12 @@ static void presetClear(int slot) { Mod::get()->setSavedValue<bool>(pkey(slot, "
 
 // ------------------------------------------------------------------ the actual input injection
 class $modify(AltGameLayer, GJBaseGameLayer) {
-        void processCommands(float dt, bool isHalfTick, bool isLastTick) {
+    void processCommands(float dt, bool isHalfTick, bool isLastTick) {
         auto pl = PlayLayer::get();
         if (pl && static_cast<GJBaseGameLayer*>(pl) == this) {
             auto send = [this](bool down, int lane) {
                 bool p1 = !(g_cfg.splitDual && m_gameState.m_isDualMode && lane == 1);
+                if (down) g_tapAge[lane] = 0.f;
                 this->handleButton(down, 1, p1);
             };
             if (g_enabled && m_player1 && !m_player1->m_isDead) {
@@ -115,18 +129,21 @@ class $modify(AltGameLayer, GJBaseGameLayer) {
                 g_wasActive = false;
             }
         }
-                GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
+        GJBaseGameLayer::processCommands(dt, isHalfTick, isLastTick);
     }
 };
 
 // ------------------------------------------------------------------ HUD
 class $modify(AltPlayLayer, PlayLayer) {
     struct Fields {
-        CCLabelBMFont* stats = nullptr;
-        CCLabelBMFont* pat = nullptr;
+        CCDrawNode* taps = nullptr;
+        CCLabelBMFont* mode = nullptr;
+        CCLabelBMFont* cps = nullptr;
+        CCLabelBMFont* inten = nullptr;
         CCLabelBMFont* slot = nullptr;
+        CCLabelBMFont* stats = nullptr;
         ButtonSprite* tog = nullptr;
-        CCNode* panel = nullptr;
+        CCNode* box = nullptr;
         float acc = 0.f;
         float fps = 60.f;
     };
@@ -144,84 +161,92 @@ class $modify(AltPlayLayer, PlayLayer) {
         g_wasActive = false;
         refreshCfg();
         if (Mod::get()->getSettingValue<bool>("auto-arm")) g_enabled = true;
+        if (auto h = m_uiLayer->getChildByID("altspam-hud")) h->setVisible(true);
     }
 
     void buildHud() {
-        auto fields = m_fields.self();
-        auto parent = static_cast<CCNode*>(m_uiLayer);
-        auto ws = CCDirector::sharedDirector()->getWinSize();
-        float top = ws.height - 34.f;
-
-        auto menu = CCMenu::create();
-        menu->setPosition({0.f, 0.f});
-        menu->setZOrder(200);
-        parent->addChild(menu);
-
-        auto addBtn = [&](CCNode* spr, SEL_MenuHandler cb, CCPoint pos, float scale) {
-            auto b = CCMenuItemSpriteExtra::create(spr, this, cb);
-            b->setPosition(pos);
-            b->setScale(scale);
-            menu->addChild(b);
-            return b;
-        };
-
-        // 5/7 selector:  <  5  >
-        auto l = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-        auto r = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-        r->setFlipX(true);
-        addBtn(l, menu_selector(AltPlayLayer::onPattern), {28.f, top}, 0.75f);
-        addBtn(r, menu_selector(AltPlayLayer::onPattern), {104.f, top}, 0.75f);
-        fields->pat = CCLabelBMFont::create("5", "bigFont.fnt");
-        fields->pat->setPosition({66.f, top});
-        fields->pat->setScale(0.9f);
-        parent->addChild(fields->pat, 200);
-
-        // ON/OFF + preset panel button
-        fields->tog = ButtonSprite::create("OFF");
-        addBtn(fields->tog, menu_selector(AltPlayLayer::onToggle), {170.f, top}, 0.6f);
-        addBtn(ButtonSprite::create("P"), menu_selector(AltPlayLayer::onPanel), {232.f, top}, 0.6f);
-
-        fields->stats = CCLabelBMFont::create("", "chatFont.fnt");
-        fields->stats->setAnchorPoint({0.f, 0.5f});
-        fields->stats->setPosition({10.f, top - 28.f});
-        fields->stats->setScale(0.7f);
-        parent->addChild(fields->stats, 200);
-
-        // preset panel (hidden by default)
-        auto panel = CCMenu::create();
-        panel->setPosition({0.f, 0.f});
-        panel->setVisible(false);
-        panel->setZOrder(200);
-        parent->addChild(panel);
-        fields->panel = panel;
-        float py = top - 58.f;
-        auto pl = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-        auto pr = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png");
-        pr->setFlipX(true);
-        auto mk = [&](CCNode* spr, SEL_MenuHandler cb, CCPoint pos, float sc) {
-            auto b = CCMenuItemSpriteExtra::create(spr, this, cb);
-            b->setPosition(pos); b->setScale(sc); panel->addChild(b);
-        };
-        mk(pl, menu_selector(AltPlayLayer::onSlotPrev), {28.f, py}, 0.6f);
-        mk(pr, menu_selector(AltPlayLayer::onSlotNext), {118.f, py}, 0.6f);
-        fields->slot = CCLabelBMFont::create("Slot 1", "bigFont.fnt");
-        fields->slot->setPosition({73.f, py});
-        fields->slot->setScale(0.45f);
-        parent->addChild(fields->slot, 200);
-        fields->slot->setVisible(false);
-        mk(ButtonSprite::create("Load"), menu_selector(AltPlayLayer::onLoad), {172.f, py}, 0.5f);
-        mk(ButtonSprite::create("Save"), menu_selector(AltPlayLayer::onSave), {228.f, py}, 0.5f);
-        mk(ButtonSprite::create("Clear"), menu_selector(AltPlayLayer::onClear), {288.f, py}, 0.5f);
-    }
-
-    void onPattern(CCObject*) { stepPattern(); }
-    void onToggle(CCObject*) { setEnabled(!g_enabled); }
-    void onPanel(CCObject*) {
         auto f = m_fields.self();
-        bool v = !f->panel->isVisible();
-        f->panel->setVisible(v);
-        f->slot->setVisible(v);
+        auto ws = CCDirector::sharedDirector()->getWinSize();
+        float sc = static_cast<float>(Mod::get()->getSettingValue<double>("hud-scale"));
+        bool right = Mod::get()->getSettingValue<std::string>("hud-side") == "Right";
+        float x0 = right ? ws.width - 70.f * sc : 70.f * sc;
+        float step = 36.f * sc;
+        float y0 = ws.height - 26.f * sc;
+
+        auto root = CCNode::create();
+        root->setID("altspam-hud");
+        root->setZOrder(300);
+        static_cast<CCNode*>(m_uiLayer)->addChild(root);
+
+        f->taps = CCDrawNode::create();
+        root->addChild(f->taps, 0);
+
+        // always-visible button that opens/closes the panel
+        auto top = CCMenu::create();
+        top->setPosition({0.f, 0.f});
+        root->addChild(top, 2);
+        auto open = CCMenuItemSpriteExtra::create(ButtonSprite::create("AS"), this, menu_selector(AltPlayLayer::onOpen));
+        open->setPosition({x0, y0});
+        open->setScale(0.8f * sc);
+        top->addChild(open);
+
+        // the panel
+        f->box = CCNode::create();
+        f->box->setVisible(false);
+        root->addChild(f->box, 2);
+        auto pm = CCMenu::create();
+        pm->setPosition({0.f, 0.f});
+        f->box->addChild(pm, 1);
+
+        auto btn = [&](CCNode* spr, SEL_MenuHandler cb, float x, float y, float s) {
+            auto b = CCMenuItemSpriteExtra::create(spr, this, cb);
+            b->setPosition({x, y}); b->setScale(s * sc); pm->addChild(b);
+        };
+        auto arrow = [](bool flip) { auto a = CCSprite::createWithSpriteFrameName("GJ_arrow_01_001.png"); a->setFlipX(flip); return a; };
+        auto label = [&](float x, float y, float s) {
+            auto l = CCLabelBMFont::create("", "bigFont.fnt");
+            l->setPosition({x, y}); l->setScale(s * sc); f->box->addChild(l, 2); return l;
+        };
+        float dx = 58.f * sc;
+
+        // row 1: ON / OFF
+        f->tog = ButtonSprite::create("OFF");
+        btn(f->tog, menu_selector(AltPlayLayer::onToggle), x0, y0 - step, 0.85f);
+        // row 2: mode  < 5 CLICKS >
+        btn(arrow(false), menu_selector(AltPlayLayer::onModePrev), x0 - dx - 14.f * sc, y0 - 2 * step, 0.8f);
+        btn(arrow(true), menu_selector(AltPlayLayer::onModeNext), x0 + dx + 14.f * sc, y0 - 2 * step, 0.8f);
+        f->mode = label(x0, y0 - 2 * step, 0.45f);
+        // row 3: CPS  -  20  +
+        btn(ButtonSprite::create("-"), menu_selector(AltPlayLayer::onCpsDown), x0 - dx, y0 - 3 * step, 0.7f);
+        btn(ButtonSprite::create("+"), menu_selector(AltPlayLayer::onCpsUp), x0 + dx, y0 - 3 * step, 0.7f);
+        f->cps = label(x0, y0 - 3 * step, 0.4f);
+        // row 4: intensity
+        btn(ButtonSprite::create("-"), menu_selector(AltPlayLayer::onIntDown), x0 - dx, y0 - 4 * step, 0.7f);
+        btn(ButtonSprite::create("+"), menu_selector(AltPlayLayer::onIntUp), x0 + dx, y0 - 4 * step, 0.7f);
+        f->inten = label(x0, y0 - 4 * step, 0.4f);
+        // row 5: preset slot
+        btn(arrow(false), menu_selector(AltPlayLayer::onSlotPrev), x0 - dx - 14.f * sc, y0 - 5 * step, 0.7f);
+        btn(arrow(true), menu_selector(AltPlayLayer::onSlotNext), x0 + dx + 14.f * sc, y0 - 5 * step, 0.7f);
+        f->slot = label(x0, y0 - 5 * step, 0.4f);
+        // row 6: preset actions
+        btn(ButtonSprite::create("Load"), menu_selector(AltPlayLayer::onLoad), x0 - 62.f * sc, y0 - 6 * step, 0.55f);
+        btn(ButtonSprite::create("Save"), menu_selector(AltPlayLayer::onSave), x0, y0 - 6 * step, 0.55f);
+        btn(ButtonSprite::create("Del"), menu_selector(AltPlayLayer::onClear), x0 + 62.f * sc, y0 - 6 * step, 0.55f);
+        // stats
+        f->stats = CCLabelBMFont::create("", "chatFont.fnt");
+        f->stats->setPosition({x0, y0 - 7 * step + 6.f * sc});
+        f->stats->setScale(0.6f * sc);
+        f->box->addChild(f->stats, 2);
     }
+
+    void onOpen(CCObject*) { auto f = m_fields.self(); f->box->setVisible(!f->box->isVisible()); }
+    void onToggle(CCObject*) { setEnabled(!g_enabled); }
+    void onModePrev(CCObject*) { cycleMode(-1); }
+    void onModeNext(CCObject*) { cycleMode(1); }
+    void onCpsDown(CCObject*) { adjust("cps", -1.0, 1.0, 60.0); }
+    void onCpsUp(CCObject*) { adjust("cps", 1.0, 1.0, 60.0); }
+    void onIntDown(CCObject*) { adjust("intensity", -5.0, 5.0, 100.0); }
+    void onIntUp(CCObject*) { adjust("intensity", 5.0, 5.0, 100.0); }
     void onSlotPrev(CCObject*) { g_slot = g_slot <= 1 ? 5 : g_slot - 1; }
     void onSlotNext(CCObject*) { g_slot = g_slot >= 5 ? 1 : g_slot + 1; }
     void onLoad(CCObject*) {
@@ -234,24 +259,54 @@ class $modify(AltPlayLayer, PlayLayer) {
     }
     void onClear(CCObject*) {
         presetClear(g_slot);
-        Notification::create(fmt::format("Cleared slot {}", g_slot), NotificationIcon::Info, 1.f)->show();
+        Notification::create(fmt::format("Deleted slot {}", g_slot), NotificationIcon::Info, 1.f)->show();
     }
 
     void postUpdate(float dt) {
         PlayLayer::postUpdate(dt);
         auto f = m_fields.self();
-        if (!f->stats) return;
+        if (!f->taps) return;
+
+        // tap circles (left = cyan, right = pink), fade out quickly
+        for (int l = 0; l < 2; l++) g_tapAge[l] += dt;
+        f->taps->clear();
+        if (g_showTaps) {
+            auto ws = CCDirector::sharedDirector()->getWinSize();
+            for (int l = 0; l < 2; l++) {
+                float age = g_tapAge[l];
+                if (age > 0.2f) continue;
+                float a = 1.f - age / 0.2f;
+                CCPoint pos = {ws.width * (l ? 0.75f : 0.25f), ws.height * 0.5f};
+                f->taps->drawDot(pos, g_tapSize * (1.f + age), l ? ccc4f(1.f, 0.4f, 0.7f, 0.75f * a) : ccc4f(0.2f, 0.9f, 0.85f, 0.75f * a));
+            }
+        }
+
+        if (!f->box->isVisible()) return;
         if (dt > 0.f) f->fps = f->fps * 0.9f + (1.f / dt) * 0.1f;
         f->acc += dt;
         if (f->acc < 0.1f) return;
         f->acc = 0.f;
-        f->pat->setString(g_cfg.continuous ? "~" : fmt::format("{}", g_cfg.burstSize).c_str());
         f->tog->setString(g_enabled ? "ON" : "OFF");
-        f->slot->setString(fmt::format("Slot {}{}", g_slot, presetUsed(g_slot) ? "*" : "").c_str());
-        double target = alt::effectiveCps(g_cfg, alt::Engine::kInf);
-        f->stats->setString(fmt::format("CPS {:.1f}/{:.1f}  FPS {:.0f}  err {:.1f}ms{}",
-            g_engine.liveCps(), target, f->fps, g_engine.avgErrMs(),
+        f->mode->setString(g_cfg.continuous ? "NONSTOP" : fmt::format("{} CLICKS", g_cfg.burstSize).c_str());
+        f->cps->setString(fmt::format("{:.0f} CPS", Mod::get()->getSettingValue<double>("cps")).c_str());
+        f->inten->setString(fmt::format("{:.0f}% POWER", Mod::get()->getSettingValue<double>("intensity")).c_str());
+        f->slot->setString(fmt::format("SLOT {}{}", g_slot, presetUsed(g_slot) ? " *" : "").c_str());
+        f->stats->setString(fmt::format("live {:.1f}  FPS {:.0f}  err {:.1f}ms{}",
+            g_engine.liveCps(), f->fps, g_engine.avgErrMs(),
             g_engine.counting() ? "  (starting)" : (g_engine.isFinished() ? "  (auto-stopped)" : "")).c_str());
+    }
+};
+
+// Hide the panel + taps while the game is paused
+#include <Geode/modify/PauseLayer.hpp>
+class $modify(AltPause, PauseLayer) {
+    void customSetup() {
+        PauseLayer::customSetup();
+        if (auto pl = PlayLayer::get()) if (auto h = pl->m_uiLayer->getChildByID("altspam-hud")) h->setVisible(false);
+    }
+    void onResume(CCObject* s) {
+        PauseLayer::onResume(s);
+        if (auto pl = PlayLayer::get()) if (auto h = pl->m_uiLayer->getChildByID("altspam-hud")) h->setVisible(true);
     }
 };
 
@@ -271,8 +326,8 @@ class $modify(AltKeys, CCKeyboardDispatcher) {
         if (down && !repeat && PlayLayer::get()) {
             auto m = Mod::get();
             if (key == keyFromName(m->getSettingValue<std::string>("key-toggle"))) setEnabled(!g_enabled);
-            else if (key == keyFromName(m->getSettingValue<std::string>("key-prev"))) stepPattern();
-            else if (key == keyFromName(m->getSettingValue<std::string>("key-next"))) stepPattern();
+            else if (key == keyFromName(m->getSettingValue<std::string>("key-prev"))) cycleMode(-1);
+            else if (key == keyFromName(m->getSettingValue<std::string>("key-next"))) cycleMode(1);
         }
         return CCKeyboardDispatcher::dispatchKeyboardMSG(key, down, repeat);
     }
